@@ -1,0 +1,240 @@
+<!-- borrowingForm.html -->
+<div class="p-6">
+  <h3 class="text-lg font-medium text-gray-900 mb-4" id="modalTitle">
+    新增借閱
+  </h3>
+
+  <form id="borrowingForm" class="space-y-4">
+    <!-- 書籍選擇 -->
+    <div>
+      <label for="book_id" class="block text-sm font-medium text-gray-700 mb-1">
+        書籍 <span class="text-red-500">*</span>
+      </label>
+      <select
+        id="book_id"
+        name="book_id"
+        required
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">請選擇書籍</option>
+        <!-- 可借閱書籍列表會動態載入 -->
+      </select>
+      <p class="mt-1 text-sm text-gray-500">僅顯示可借閱的書籍</p>
+    </div>
+
+    <!-- 會員選擇 -->
+    <div>
+      <label
+        for="member_id"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        借閱會員 <span class="text-red-500">*</span>
+      </label>
+      <select
+        id="member_id"
+        name="member_id"
+        required
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">請選擇會員</option>
+        <!-- 會員列表會動態載入 -->
+      </select>
+    </div>
+
+    <!-- 借閱日期 -->
+    <div>
+      <label
+        for="borrow_date"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        借閱日期 <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="date"
+        id="borrow_date"
+        name="borrow_date"
+        required
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      />
+    </div>
+
+    <!-- 預計歸還日期 -->
+    <div>
+      <label
+        for="expected_return_date"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        預計歸還日期 <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="date"
+        id="expected_return_date"
+        name="expected_return_date"
+        required
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      />
+      <p class="mt-1 text-sm text-gray-500">最長借閱期限為14天</p>
+    </div>
+
+    <!-- 備註 -->
+    <div>
+      <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
+        備註
+      </label>
+      <textarea
+        id="notes"
+        name="notes"
+        rows="2"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      ></textarea>
+    </div>
+
+    <!-- 按鈕區域 -->
+    <div class="flex justify-end space-x-2 pt-4">
+      <button
+        type="button"
+        onclick="closeModal()"
+        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+      >
+        取消
+      </button>
+      <button
+        type="submit"
+        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        確認借閱
+      </button>
+    </div>
+  </form>
+</div>
+
+<script type="module">
+  import utils from "../js/utils.js";
+  import API from "../js/api.js";
+  import CONFIG from "../js/config.js";
+
+  // 載入可借閱書籍
+  async function loadAvailableBooks() {
+    try {
+      const response = await API.books.getAll();
+      const bookSelect = document.getElementById("book_id");
+      const availableBooks = response.data.filter(
+        (book) => book.status === "available"
+      );
+
+      availableBooks.forEach((book) => {
+        const option = document.createElement("option");
+        option.value = book.id;
+        option.textContent = `${book.title} (${book.isbn})`;
+        bookSelect.appendChild(option);
+      });
+    } catch (error) {
+      utils.showError("載入書籍失敗");
+      console.error("Error loading books:", error);
+    }
+  }
+
+  // 載入會員列表
+  async function loadMembers() {
+    try {
+      const response = await API.members.getAll();
+      const memberSelect = document.getElementById("member_id");
+      const activeMembers = response.data.filter(
+        (member) => member.status === "active"
+      );
+
+      activeMembers.forEach((member) => {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = `${member.name} (${member.member_id})`;
+        memberSelect.appendChild(option);
+      });
+    } catch (error) {
+      utils.showError("載入會員資料失敗");
+      console.error("Error loading members:", error);
+    }
+  }
+
+  // 設置日期限制
+  function setupDateConstraints() {
+    const today = new Date().toISOString().split("T")[0];
+    const borrowDateInput = document.getElementById("borrow_date");
+    const returnDateInput = document.getElementById("expected_return_date");
+
+    // 設置借閱日期最小值為今天
+    borrowDateInput.min = today;
+    borrowDateInput.value = today;
+
+    // 監聽借閱日期變更
+    borrowDateInput.addEventListener("change", (e) => {
+      const borrowDate = new Date(e.target.value);
+      const maxReturnDate = new Date(borrowDate);
+      maxReturnDate.setDate(
+        maxReturnDate.getDate() + CONFIG.LIBRARY_RULES.maxBorrowDays
+      );
+
+      returnDateInput.min = e.target.value;
+      returnDateInput.max = maxReturnDate.toISOString().split("T")[0];
+
+      // 預設為最大借閱天數
+      returnDateInput.value = returnDateInput.max;
+    });
+
+    // 觸發一次change事件來設置初始值
+    borrowDateInput.dispatchEvent(new Event("change"));
+  }
+
+  // 驗證借閱資格
+  async function validateBorrowing(memberId) {
+    try {
+      const response = await API.members.getBorrowHistory(memberId);
+      const activeLoans = response.data.filter((loan) => !loan.return_date);
+
+      if (activeLoans.length >= CONFIG.LIBRARY_RULES.maxBooksPerMember) {
+        utils.showError(
+          `此會員已達到最大借閱數量 (${CONFIG.LIBRARY_RULES.maxBooksPerMember}本)`
+        );
+        return false;
+      }
+      return true;
+    } catch (error) {
+      utils.showError("驗證借閱資格失敗");
+      console.error("Error validating borrowing eligibility:", error);
+      return false;
+    }
+  }
+
+  // 初始化表單
+  document.addEventListener("DOMContentLoaded", () => {
+    loadAvailableBooks();
+    loadMembers();
+    setupDateConstraints();
+
+    // 表單提交處理
+    document.getElementById("borrowingForm").onsubmit = async (e) => {
+      e.preventDefault();
+
+      const memberId = document.getElementById("member_id").value;
+      if (!(await validateBorrowing(memberId))) return;
+
+      const formData = {
+        book_id: document.getElementById("book_id").value,
+        member_id: memberId,
+        borrow_date: document.getElementById("borrow_date").value,
+        expected_return_date: document.getElementById("expected_return_date")
+          .value,
+        notes: document.getElementById("notes").value,
+      };
+
+      try {
+        await API.borrowings.create(formData);
+        utils.showSuccess("借閱成功");
+        closeModal();
+        window.loadBorrowings(); // 重新載入借閱列表
+      } catch (error) {
+        utils.showError("借閱失敗");
+        console.error("Error creating borrowing:", error);
+      }
+    };
+  });
+</script>

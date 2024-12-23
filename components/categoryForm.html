@@ -1,0 +1,231 @@
+<!-- categoryForm.html -->
+<div class="p-6">
+  <h3 class="text-lg font-medium text-gray-900 mb-4" id="modalTitle">
+    新增分類
+  </h3>
+
+  <form id="categoryForm" class="space-y-4">
+    <!-- 分類名稱 -->
+    <div>
+      <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+        分類名稱 <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        required
+        maxlength="50"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      />
+      <p class="mt-1 text-sm text-gray-500">最多50個字</p>
+    </div>
+
+    <!-- 分類代碼 -->
+    <div>
+      <label for="code" class="block text-sm font-medium text-gray-700 mb-1">
+        分類代碼 <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="code"
+        name="code"
+        required
+        maxlength="10"
+        pattern="[A-Z0-9]+"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 uppercase"
+      />
+      <p class="mt-1 text-sm text-gray-500">請使用大寫英文字母和數字的組合</p>
+    </div>
+
+    <!-- 父分類 -->
+    <div>
+      <label
+        for="parent_id"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        父分類
+      </label>
+      <select
+        id="parent_id"
+        name="parent_id"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">無</option>
+        <!-- 分類列表會動態載入 -->
+      </select>
+    </div>
+
+    <!-- 描述 -->
+    <div>
+      <label
+        for="description"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        描述
+      </label>
+      <textarea
+        id="description"
+        name="description"
+        rows="3"
+        maxlength="200"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      ></textarea>
+      <p class="mt-1 text-sm text-gray-500">最多200個字</p>
+    </div>
+
+    <!-- 排序順序 -->
+    <div>
+      <label
+        for="sort_order"
+        class="block text-sm font-medium text-gray-700 mb-1"
+      >
+        排序順序
+      </label>
+      <input
+        type="number"
+        id="sort_order"
+        name="sort_order"
+        min="0"
+        value="0"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+      />
+      <p class="mt-1 text-sm text-gray-500">數字越小排序越前面</p>
+    </div>
+
+    <!-- 是否啟用 -->
+    <div class="flex items-center">
+      <input
+        type="checkbox"
+        id="is_active"
+        name="is_active"
+        checked
+        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+      />
+      <label for="is_active" class="ml-2 block text-sm text-gray-900">
+        啟用此分類
+      </label>
+    </div>
+
+    <!-- 按鈕區域 -->
+    <div class="flex justify-end space-x-2 pt-4">
+      <button
+        type="button"
+        onclick="closeModal()"
+        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+      >
+        取消
+      </button>
+      <button
+        type="submit"
+        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        儲存
+      </button>
+    </div>
+  </form>
+</div>
+
+<script type="module">
+  import utils from "../js/utils.js";
+  import API from "../js/api.js";
+
+  // 載入分類列表（用於父分類選擇）
+  async function loadCategories() {
+    try {
+      const response = await API.categories.getAll();
+      const parentSelect = document.getElementById("parent_id");
+
+      response.data.forEach((category) => {
+        // 排除當前編輯的分類（如果是編輯模式）
+        if (
+          window.currentCategoryId &&
+          category.id === window.currentCategoryId
+        ) {
+          return;
+        }
+        const option = document.createElement("option");
+        option.value = category.id;
+        option.textContent = category.name;
+        parentSelect.appendChild(option);
+      });
+    } catch (error) {
+      utils.showError("載入分類失敗");
+      console.error("Error loading categories:", error);
+    }
+  }
+
+  // 驗證分類代碼是否重複
+  async function validateCategoryCode(code, excludeId = null) {
+    try {
+      const response = await API.categories.checkCode(code);
+      const exists = response.data.exists;
+      if (exists && response.data.category_id !== excludeId) {
+        utils.showError("分類代碼已存在");
+        return false;
+      }
+      return true;
+    } catch (error) {
+      utils.showError("驗證分類代碼失敗");
+      console.error("Error validating category code:", error);
+      return false;
+    }
+  }
+
+  // 初始化表單
+  document.addEventListener("DOMContentLoaded", () => {
+    loadCategories();
+
+    // 分類代碼輸入處理
+    const codeInput = document.getElementById("code");
+    codeInput.addEventListener("input", (e) => {
+      e.target.value = e.target.value.toUpperCase();
+    });
+
+    // 表單提交處理
+    document.getElementById("categoryForm").onsubmit = async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        name: document.getElementById("name").value,
+        code: document.getElementById("code").value,
+        parent_id: document.getElementById("parent_id").value || null,
+        description: document.getElementById("description").value,
+        sort_order: parseInt(document.getElementById("sort_order").value),
+        is_active: document.getElementById("is_active").checked,
+      };
+
+      // 驗證分類代碼
+      if (
+        !(await validateCategoryCode(formData.code, window.currentCategoryId))
+      ) {
+        return;
+      }
+
+      try {
+        if (window.currentCategoryId) {
+          await API.categories.update(window.currentCategoryId, formData);
+          utils.showSuccess("更新成功");
+        } else {
+          await API.categories.create(formData);
+          utils.showSuccess("新增成功");
+        }
+        closeModal();
+        window.loadCategories(); // 重新載入分類列表
+      } catch (error) {
+        utils.showError(window.currentCategoryId ? "更新失敗" : "新增失敗");
+        console.error("Error saving category:", error);
+      }
+    };
+  });
+
+  // 設置編輯模式的表單數據
+  export function setFormData(category) {
+    document.getElementById("name").value = category.name;
+    document.getElementById("code").value = category.code;
+    document.getElementById("parent_id").value = category.parent_id || "";
+    document.getElementById("description").value = category.description || "";
+    document.getElementById("sort_order").value = category.sort_order || 0;
+    document.getElementById("is_active").checked = category.is_active;
+  }
+</script>
